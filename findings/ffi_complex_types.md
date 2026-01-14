@@ -732,3 +732,21 @@ For high-performance FFI with complex types:
 **The opaque handle pattern is the ONLY approach that provides true zero-copy access to large strings. FlatBuffers and other serialization formats still require allocation when you need to use the string data.**
 
 **Critical insight:** The binding should work with `Span<byte>` / `string_view` as long as possible. Only convert to `string` / `std::string` at the absolute last moment (e.g., when passing to an API that requires it), and be aware this will allocate.
+
+---
+
+## Final Take: FFI is Not a Silver Bullet
+
+Although FFI seems to be the panacea for SDK teams looking to share a single high-performance core across multiple languages, **it brings significant complexity and has hard blockers:**
+
+| Challenge | Impact | Severity |
+|-----------|--------|----------|
+| **UDT/Complex Type FFI** | Cannot pass dictionaries, objects, nested types without serialization overhead | 🔴 Blocker |
+| **OpenSSL Compatibility** | Native library may link against different OpenSSL version than host app | 🔴 Blocker |
+| **Memory Safety** | Manual lifetime management, use-after-free risks, double-free bugs | 🟠 High |
+| **ABI Stability** | Struct layout changes break compatibility silently | 🟠 High |
+| **Debugging** | Cross-language stack traces are painful | 🟡 Medium |
+| **Build Complexity** | Must build native lib for every target OS/arch combination | 🟡 Medium |
+| **Distribution** | Native DLLs must be bundled, signed, and loaded correctly | 🟡 Medium |
+
+**Bottom line:** FFI works well for **simple, primitive-heavy APIs** with clear ownership semantics. For complex domain objects, consider whether the performance gains justify the engineering investment and ongoing maintenance burden.
