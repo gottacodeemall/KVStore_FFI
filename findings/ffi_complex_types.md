@@ -711,6 +711,80 @@ Based on our FFI baseline measurements:
 
 ---
 
+## Real-World Example: HTTP Headers (Azure SDK Pattern)
+
+A practical example that exposes the next bottleneck: passing `RequestHeaders` and `ResponseHeaders` across FFI.
+
+### Typical Header Structure
+
+```
+RequestHeaders (C# → Rust): 10-20 key-value pairs, ~1-3KB total
+├── "Content-Type": "application/json"
+├── "Authorization": "Bearer eyJhbG..." (JWT, 800-2000 bytes)
+├── "x-ms-client-request-id": "guid"
+├── "x-ms-date": "Mon, 13 Jan 2026..."
+├── "x-ms-version": "2024-01-01"
+└── ... (5-15 more headers)
+
+ResponseHeaders (Rust → C#): 10-30 key-value pairs, ~500 bytes - 2KB
+├── "Content-Type": "application/json"
+├── "x-ms-request-id": "guid"
+├── "ETag": "W/\"datetime...\""
+└── ... (10-25 more headers)
+```
+
+### Headers FFI Overhead Analysis
+
+| Approach | Request (10 headers) | Response (15 headers) | Round Trip |
+|----------|---------------------|----------------------|------------|
+| **Serialization** | 80-180 μs | 90-200 μs | **~350 μs** |
+| **Opaque Handle (as Span)** | ~2 μs | ~300 ns | **~2.3 μs** |
+| **Opaque Handle (as string)** | ~2 μs | ~5 μs | **~7 μs** |
+
+### The Hidden Cost: String Materialization
+
+Even with opaque handles, if your API surface requires actual `string` objects (not `Span<byte>`), you pay the allocation cost:
+
+```csharp
+// Zero-copy - wraps pointer (~10 ns)
+ReadOnlySpan<byte> contentType = response.GetHeaderSpan("Content-Type");
+
+// With allocation - creates new string (~200-400 ns per header)
+string contentType = response.GetHeader("Content-Type"); // Encoding.UTF8.GetString()
+```
+
+**Reading all 15 response headers as strings: ~5 μs** (vs ~300 ns for Spans)
+
+### This is the Next Bottleneck
+
+While ~7 μs round-trip is **50x faster than serialization**, it still represents:
+
+- **Additional complexity**: Must implement bulk accessors, handle pinning, manage lifetimes
+- **API surface constraints**: Forcing `Span<byte>` on consumers is not always practical
+- **Every request pays this cost**: At 10K requests/sec, that's 70ms/sec just in header FFI overhead
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    COMPLEXITY ESCALATION                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Simple KV (string key, string value)                                       │
+│  └─▶ Zero-copy FFI works great (~200 ns)                     ✅ Simple     │
+│                                                                             │
+│  Add headers (Dictionary<string, string>)                                   │
+│  └─▶ Need opaque handles + bulk accessors (~7 μs)            🟡 Complex    │
+│                                                                             │
+│  Add request body (custom objects)                                          │
+│  └─▶ Need more accessors, iterators, nested handles          🟠 Very Hard  │
+│                                                                             │
+│  Add retry policies, cancellation, streaming...                             │
+│  └─▶ Exponential complexity growth                           🔴 Nightmare  │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## Conclusion
 
 For high-performance FFI with complex types:
@@ -742,11 +816,67 @@ Although FFI seems to be the panacea for SDK teams looking to share a single hig
 | Challenge | Impact | Severity |
 |-----------|--------|----------|
 | **UDT/Complex Type FFI** | Cannot pass dictionaries, objects, nested types without serialization overhead | 🔴 Blocker |
+| **Headers/Collections** | Even with opaque handles, adds ~7 μs per request and significant code complexity | 🔴 Blocker |
 | **OpenSSL Compatibility** | Native library may link against different OpenSSL version than host app | 🔴 Blocker |
 | **Memory Safety** | Manual lifetime management, use-after-free risks, double-free bugs | 🟠 High |
 | **ABI Stability** | Struct layout changes break compatibility silently | 🟠 High |
-| **Debugging** | Cross-language stack traces are painful | 🟡 Medium |
+| **Debugging** | Cross-language stack traces are painful | 🟠 High |
 | **Build Complexity** | Must build native lib for every target OS/arch combination | 🟡 Medium |
 | **Distribution** | Native DLLs must be bundled, signed, and loaded correctly | 🟡 Medium |
 
-**Bottom line:** FFI works well for **simple, primitive-heavy APIs** with clear ownership semantics. For complex domain objects, consider whether the performance gains justify the engineering investment and ongoing maintenance burden.
+---
+
+## The Real Cost: Engineering Investment
+
+**This level of systems engineering is not the cup of tea for many engineering teams.**
+
+The FFI approach requires:
+
+| Capability | Requirement | Reality Check |
+|------------|-------------|---------------|
+| **Core Systems Expertise** | Deep understanding of memory layouts, ABI, unsafe code | Rare skill set |
+| **Multi-Language Proficiency** | Rust + C + C# + C++ at systems level | Even rarer |
+| **Debugging Skills** | Cross-language debugging, memory profilers, ABI analyzers | Specialized tooling |
+| **Ongoing Maintenance** | Every API change touches 4+ codebases | High coordination cost |
+
+### Long-Term Risks
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    ORGANIZATIONAL RISKS                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  🔴 Developer Ramp-Up                                                       │
+│     New team members need months to become productive with FFI internals   │
+│                                                                             │
+│  🔴 Developer Ramp-Down                                                     │
+│     When experts leave, critical knowledge walks out the door              │
+│     Bus factor = 1 or 2 for most teams                                     │
+│                                                                             │
+│  🔴 Production Debugging                                                    │
+│     Memory corruption bugs surface days/weeks after root cause             │
+│     Cross-language stack traces are incomplete or misleading               │
+│     "Works locally, crashes in prod" is common                             │
+│                                                                             │
+│  🔴 Maintainability                                                         │
+│     Every feature request requires changes across all language bindings    │
+│     Testing matrix explodes: N languages × M platforms × K versions        │
+│     Technical debt accumulates faster than it can be paid down             │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Recommendation
+
+**Think twice before committing to FFI for SDK development.** The performance gains (~7 μs vs ~350 μs per request) are real, but they come at a cost:
+
+| Factor | FFI Approach | Native Per-Language SDKs |
+|--------|--------------|-------------------------|
+| **Performance** | ✅ Best possible | 🟡 Good enough (usually) |
+| **Complexity** | 🔴 Extremely high | ✅ Language-idiomatic |
+| **Maintainability** | 🔴 Requires specialists | ✅ Any senior dev can contribute |
+| **Debugging** | 🔴 Cross-language nightmares | ✅ Standard tooling works |
+| **Hiring** | 🔴 Tiny talent pool | ✅ Large talent pool |
+| **Bus Factor** | 🔴 1-2 people | ✅ Whole team |
+
+**Bottom line:** Unless you have a dedicated systems engineering team with deep FFI expertise AND performance requirements that absolutely cannot be met any other way, consider native implementations per language. The "write once, bind everywhere" dream often becomes a maintenance nightmare.
