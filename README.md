@@ -24,13 +24,17 @@ Evaluate whether FFI is a viable approach for SDK teams to:
 | Challenge | Impact | Severity |
 |-----------|--------|----------|
 | **UDT/Complex Type FFI** | Cannot pass dictionaries, objects, nested types without serialization (100-200μs overhead) | 🔴 Blocker |
+| **HTTP Headers Overhead** | Even optimized, ~7 μs per request for typical header round-trip | 🔴 Blocker |
 | **OpenSSL Compatibility** | Native library may link against different OpenSSL version than host app | 🔴 Blocker |
 | **Memory Safety** | Manual lifetime management, use-after-free risks | 🟠 High |
 | **ABI Stability** | Struct layout changes break compatibility silently | 🟠 High |
+| **Production Debugging** | Cross-language stack traces are incomplete/misleading | 🟠 High |
 
 ### 💡 Bottom Line
 
-**FFI works well for simple, primitive-heavy APIs** with clear ownership semantics. For complex domain objects with dictionaries, nested types, or user-defined classes, the engineering investment may not justify the performance gains. See [findings/ffi_complex_types.md](findings/ffi_complex_types.md) for detailed analysis.
+**FFI is not the silver bullet it appears to be.**
+
+While we achieved sub-microsecond overhead for simple types, the complexity escalates rapidly with real-world SDK requirements (headers, complex objects, error handling). See [findings/ffi_complex_types.md](findings/ffi_complex_types.md) for detailed analysis.
 
 ---
 
@@ -218,14 +222,42 @@ MIT
 
 ---
 
-## Conclusion
+## Conclusion: Think Twice Before Adopting FFI
 
-This research demonstrates that **zero-copy FFI is achievable for primitive types and simple structs** with sub-microsecond overhead. However, **FFI is not a silver bullet** for SDK teams:
+This research demonstrates that **zero-copy FFI is achievable for primitive types** with sub-microsecond overhead. However, **FFI is not a silver bullet** for SDK teams.
 
-- ✅ **Works well for:** Simple KV operations, primitive-heavy APIs, performance-critical hot paths
-- ❌ **Does not work for:** Complex objects, dictionaries, nested types, user-defined classes
+### What Works
 
-For complex domain models, consider:
-1. **Native implementations** per language (more effort, better DX)
-2. **gRPC/Protocol Buffers** (schema evolution, cross-process)
-3. **Opaque handles + accessors** (keeps data in Rust, exposes field-by-field access)
+- ✅ Simple KV operations (~200-600 ns)
+- ✅ Primitive-heavy APIs
+- ✅ Performance-critical hot paths with simple data
+
+### What Doesn't Work
+
+- ❌ Complex objects, dictionaries, nested types
+- ❌ User-defined classes
+- ❌ HTTP headers and collections (~7 μs overhead even when optimized)
+
+### The Real Cost: Engineering Investment
+
+**This level of systems engineering is not the cup of tea for many engineering teams.**
+
+| Risk | Impact |
+|------|--------|
+| 🔴 **Developer Ramp-Up** | New team members need months to become productive with FFI internals |
+| 🔴 **Developer Ramp-Down** | When experts leave, critical knowledge walks out the door (bus factor = 1-2) |
+| 🔴 **Production Debugging** | Memory corruption bugs surface days/weeks after root cause; cross-language stack traces are incomplete |
+| 🔴 **Maintainability** | Every feature request requires changes across all language bindings; testing matrix explodes |
+
+### Recommendation
+
+| Factor | FFI Approach | Native Per-Language SDKs |
+|--------|--------------|-------------------------|
+| **Performance** | ✅ Best possible | 🟡 Good enough (usually) |
+| **Complexity** | 🔴 Extremely high | ✅ Language-idiomatic |
+| **Maintainability** | 🔴 Requires specialists | ✅ Any senior dev can contribute |
+| **Debugging** | 🔴 Cross-language nightmares | ✅ Standard tooling works |
+| **Hiring** | 🔴 Tiny talent pool | ✅ Large talent pool |
+| **Bus Factor** | 🔴 1-2 people | ✅ Whole team |
+
+**Unless you have a dedicated systems engineering team with deep FFI expertise AND performance requirements that absolutely cannot be met any other way, consider native implementations per language.** The "write once, bind everywhere" dream often becomes a maintenance nightmare.
