@@ -1,0 +1,19 @@
+language = "C"
+include_guard = "KV_STORE_H"
+style = "Both"
+cpp_compat = true
+
+[export]
+include = ["KvStoreClient", "KvStoreConfig", "KvGetResult", "KvSetResult", "KvStringRef", "KvCacheStats"]
+prefix = ""
+
+[export.rename]
+
+[fn]
+prefix = "kv_store_"
+
+[struct]
+rename_fields = "SnakeCase"
+
+[enum]
+rename_variants = "ScreamingSnakeCase"

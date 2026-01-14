@@ -1,0 +1,186 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# Rust
+# ═══════════════════════════════════════════════════════════════════════════
+target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
+
+# ═══════════════════════════════════════════════════════════════════════════
+# C# / .NET
+# ═══════════════════════════════════════════════════════════════════════════
+bin/
+obj/
+*.dll
+*.exe
+*.so
+*.dylib
+*.nupkg
+*.snupkg
+project.lock.json
+*.user
+*.userosscache
+*.sln.docstates
+.vs/
+*.csproj.user
+
+# NuGet
+*.nuget.props
+*.nuget.targets
+packages/
+
+# Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# BenchmarkDotNet
+BenchmarkDotNet.Artifacts/
+
+# ═══════════════════════════════════════════════════════════════════════════
+# C / C++
+# ═══════════════════════════════════════════════════════════════════════════
+# Build directories
+build/
+cmake-build-*/
+out/
+
+# Object files
+*.o
+*.obj
+*.ko
+*.elf
+
+# Libraries
+*.lib
+*.a
+*.la
+*.lo
+*.lai
+
+# Shared libraries
+*.so
+*.so.*
+*.dylib
+
+# Executables
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# CMake
+CMakeLists.txt.user
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps/
+*.cmake
+!FindMoka.cmake
+
+# ═══════════════════════════════════════════════════════════════════════════
+# IDEs and Editors
+# ═══════════════════════════════════════════════════════════════════════════
+# Visual Studio
+.vs/
+*.sln.docstates
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.VC.db
+*.VC.VC.opendb
+
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# JetBrains
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# ═══════════════════════════════════════════════════════════════════════════
+# OS Generated
+# ═══════════════════════════════════════════════════════════════════════════
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Linux
+*~
+.fuse_hidden*
+.Trash-*
+.nfs*
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Misc
+# ═══════════════════════════════════════════════════════════════════════════
+# Logs
+*.log
+logs/
+
+# Test results
+TestResults/
+*.trx
+
+# Coverage
+coverage/
+*.coverage
+*.coveragexml
+lcov.info
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Backup files
+*.bak
+*.backup
