@@ -1,4 +1,4 @@
-````markdown
+
 # FFI Complex Types - UDTs, Collections, and Nested Objects
 
 **Date:** January 13, 2026  
@@ -732,5 +732,3 @@ For high-performance FFI with complex types:
 **The opaque handle pattern is the ONLY approach that provides true zero-copy access to large strings. FlatBuffers and other serialization formats still require allocation when you need to use the string data.**
 
 **Critical insight:** The binding should work with `Span<byte>` / `string_view` as long as possible. Only convert to `string` / `std::string` at the absolute last moment (e.g., when passing to an API that requires it), and be aware this will allocate.
-
-````
